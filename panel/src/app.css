@@ -1,0 +1,366 @@
+/* Windows 11 Fluent tokens. Light is the base; dark overrides follow the OS. */
+:root {
+  color-scheme: light dark;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --r-card: 8px;
+  --r-ctl: 4px;
+
+  --bg-solid: #f3f3f3;
+  --layer: rgba(255, 255, 255, 0.5);
+  --layer-stroke: rgba(0, 0, 0, 0.0578);
+  --card: rgba(255, 255, 255, 0.7);
+  --card-solid: #fbfbfb;
+  --stroke: rgba(0, 0, 0, 0.0578);
+  --divider: rgba(0, 0, 0, 0.0803);
+  --ctl: rgba(255, 255, 255, 0.7);
+  --ctl-hover: rgba(249, 249, 249, 0.5);
+  --ctl-press: rgba(249, 249, 249, 0.3);
+  --ctl-stroke: rgba(0, 0, 0, 0.0578);
+  --ctl-stroke-bottom: rgba(0, 0, 0, 0.1622);
+  --ctl-focus-bg: #ffffff;
+  --subtle-hover: rgba(0, 0, 0, 0.0373);
+  --subtle-press: rgba(0, 0, 0, 0.0241);
+  --track: rgba(0, 0, 0, 0.0578);
+  --text: rgba(0, 0, 0, 0.896);
+  --text-2: rgba(0, 0, 0, 0.606);
+  --text-3: rgba(0, 0, 0, 0.446);
+  --accent: #005fb8;
+  --accent-hover: #196ebf;
+  --accent-press: #3183ca;
+  --on-accent: #ffffff;
+  --ok: #0f7b0f;
+  --info: #005fb8;
+  --warn: #9d5d00;
+  --danger: #c42b1c;
+  --ok-bg: #dff6dd;
+  --info-bg: rgba(0, 95, 184, 0.08);
+  --warn-bg: #fff4ce;
+  --danger-bg: #fde7e9;
+  --neutral-bg: rgba(0, 0, 0, 0.0373);
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-solid: #202020;
+    --layer: rgba(58, 58, 58, 0.3);
+    --layer-stroke: rgba(0, 0, 0, 0.1);
+    --card: rgba(255, 255, 255, 0.0512);
+    --card-solid: #2b2b2b;
+    --stroke: rgba(255, 255, 255, 0.07);
+    --divider: rgba(255, 255, 255, 0.0837);
+    --ctl: rgba(255, 255, 255, 0.0605);
+    --ctl-hover: rgba(255, 255, 255, 0.0837);
+    --ctl-press: rgba(255, 255, 255, 0.0326);
+    --ctl-stroke: rgba(255, 255, 255, 0.0698);
+    --ctl-stroke-bottom: rgba(255, 255, 255, 0.1);
+    --ctl-focus-bg: #1e1e1e;
+    --subtle-hover: rgba(255, 255, 255, 0.0605);
+    --subtle-press: rgba(255, 255, 255, 0.0419);
+    --track: rgba(255, 255, 255, 0.0837);
+    --text: #ffffff;
+    --text-2: rgba(255, 255, 255, 0.786);
+    --text-3: rgba(255, 255, 255, 0.544);
+    --accent: #60cdff;
+    --accent-hover: #5bbae8;
+    --accent-press: #56a8d0;
+    --on-accent: #000000;
+    --ok: #6ccb5f;
+    --info: #60cdff;
+    --warn: #fce100;
+    --danger: #ff99a4;
+    --ok-bg: #393d1b;
+    --info-bg: rgba(96, 205, 255, 0.1);
+    --warn-bg: #433519;
+    --danger-bg: #442726;
+    --neutral-bg: rgba(255, 255, 255, 0.0605);
+    --shadow: 0 2px 4px rgba(0, 0, 0, 0.14);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-solid);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 20px;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Windows 11: the Mica material shows through instead of a painted background. */
+html.mica body {
+  background: transparent;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: default;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+button:disabled {
+  opacity: 0.45;
+}
+
+input {
+  user-select: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+  border-radius: var(--r-ctl);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Typography ramp */
+.title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+}
+
+.subtitle {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.body-strong {
+  font-weight: 600;
+}
+
+.caption {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.section {
+  margin: 28px 0 8px;
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.selectable {
+  user-select: text;
+}
+
+/* Surfaces */
+.card {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 96px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-ctl);
+  background: var(--ctl);
+  border: 1px solid var(--ctl-stroke);
+  border-bottom-color: var(--ctl-stroke-bottom);
+  white-space: nowrap;
+  transition: background 0.08s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--ctl-hover);
+}
+
+.btn:active:not(:disabled) {
+  background: var(--ctl-press);
+  color: var(--text-2);
+}
+
+.btn.accent {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.4);
+}
+
+.btn.accent:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn.accent:active:not(:disabled) {
+  background: var(--accent-press);
+  color: var(--on-accent);
+}
+
+.btn.subtle {
+  background: transparent;
+  border-color: transparent;
+  min-width: 0;
+}
+
+.btn.subtle:hover:not(:disabled) {
+  background: var(--subtle-hover);
+}
+
+.btn.danger-text {
+  color: var(--danger);
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+.icon-btn:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+
+/* Text box */
+.textbox {
+  height: 32px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 11px;
+  border-radius: var(--r-ctl);
+  background: var(--ctl);
+  border: 1px solid var(--ctl-stroke);
+  border-bottom-color: var(--text-3);
+}
+
+.textbox::placeholder {
+  color: var(--text-3);
+}
+
+.textbox:hover:not(:disabled) {
+  background: var(--ctl-hover);
+}
+
+.textbox:focus {
+  outline: none;
+  background: var(--ctl-focus-bg);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 1px;
+}
+
+/* Tinted icon square used by stat tiles and settings cards */
+.glyph {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-card);
+  background: var(--neutral-bg);
+  color: var(--text-2);
+}
+.glyph.accent {
+  background: var(--info-bg);
+  color: var(--accent);
+}
+.glyph.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.glyph.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.glyph.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.c-ok {
+  color: var(--ok);
+}
+.c-info {
+  color: var(--info);
+}
+.c-warn {
+  color: var(--warn);
+}
+.c-danger {
+  color: var(--danger);
+}
+
+/* Fluent-style thin scrollbars */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-3);
+  border: 5px solid transparent;
+  border-radius: 6px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  border-width: 4px;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.appear {
+  animation: enter 0.25s cubic-bezier(0.1, 0.9, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
