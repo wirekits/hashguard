@@ -179,8 +179,8 @@
   }
 
   .cap.close:hover {
-    background: #c42b1c;
-    color: #fff;
+    background: #ffffff;
+    color: #000000;
   }
 
   .cap:focus-visible {
@@ -192,7 +192,7 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: 248px 1fr;
   }
 
   .pane {
@@ -264,7 +264,6 @@
   }
   .status-dot.ok {
     background: var(--ok);
-    box-shadow: 0 0 0 4px var(--ok-bg);
   }
   .status-dot.warn {
     background: var(--warn);
@@ -272,7 +271,7 @@
   }
   .status-dot.danger {
     background: var(--danger);
-    box-shadow: 0 0 0 4px var(--danger-bg);
+    box-shadow: 0 0 14px 2px rgba(255, 255, 255, 0.55);
   }
 
   .last:hover {

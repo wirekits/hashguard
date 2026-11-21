@@ -4,6 +4,7 @@
   import { revealInExplorer } from "../lib/api";
   import LevelPill, { levelTone } from "./LevelPill.svelte";
   import Icon from "./Icon.svelte";
+  import HashBytes from "./HashBytes.svelte";
 
   let { file, onclose }: { file: FileReport; onclose: () => void } = $props();
 
@@ -64,7 +65,7 @@
       </div>
       <div class="prop">
         <dt class="caption">SHA-256</dt>
-        <dd class="mono hash selectable">{file.sha256}</dd>
+        <dd class="hash"><HashBytes hash={file.sha256} /></dd>
       </div>
     </dl>
   </div>
@@ -147,9 +148,7 @@
     text-transform: uppercase;
   }
   .hash {
-    word-break: break-all;
-    color: var(--text-2);
-    line-height: 18px;
+    margin-top: 8px;
   }
   footer {
     display: flex;

@@ -22,6 +22,17 @@
   const progress = $derived(scan.total ? scan.done / scan.total : 0);
   const primary = $derived(scan.quick[0]);
 
+  // Four concentric rings, outermost = clean, innermost = danger: reading inward
+  // goes deeper, like the levels on the site. Small counts are boosted so a single
+  // dangerous file is still visible.
+  const boost = (n: number) => (!total || !n ? 0 : Math.max(0.06, Math.min(1, Math.sqrt(n / total))));
+  const rings = $derived([
+    { r: 104, tone: "ok", frac: state === "running" ? progress : cleanShare },
+    { r: 82, tone: "info", frac: boost(counts.Info) },
+    { r: 60, tone: "warn", frac: boost(counts.Warn) },
+    { r: 38, tone: "danger", frac: boost(counts.Danger) },
+  ]);
+
   function openFinding(r: FileReport) {
     scan.selected = r;
     scan.filter = "all";
@@ -51,7 +62,20 @@
   <div class="grid">
     <!-- Status hero -->
     <section class="card hero {state}">
-      <div class="meter" style="--p: {state === 'running' ? progress : cleanShare}">
+      <div class="meter">
+        <svg class="rings" viewBox="0 0 224 224" aria-hidden="true">
+          {#each rings as g}
+            {@const c = 2 * Math.PI * g.r}
+            <circle class="track" cx="112" cy="112" r={g.r} />
+            <circle
+              class="arc {g.tone}"
+              cx="112"
+              cy="112"
+              r={g.r}
+              stroke-dasharray="{c * g.frac} {c}"
+            />
+          {/each}
+        </svg>
         <div class="meter-inner">
           {#if state === "running"}
             <span class="meter-value num">{Math.floor(progress * 100)}%</span>
@@ -281,18 +305,47 @@
   .meter {
     position: relative;
     flex-shrink: 0;
-    width: 148px;
-    height: 148px;
-    border-radius: 50%;
-    background: conic-gradient(var(--ring) calc(var(--p) * 360deg), var(--track) 0);
-    transition: background 0.3s;
+    width: 200px;
+    height: 200px;
+  }
+
+  .rings {
+    position: absolute;
+    inset: 0;
+    transform: rotate(-90deg);
+  }
+
+  .rings circle {
+    fill: none;
+    stroke-width: 6;
+  }
+
+  .rings .track {
+    stroke: var(--track);
+  }
+
+  .rings .arc {
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .arc.ok {
+    stroke: var(--ok);
+  }
+  .arc.info {
+    stroke: var(--info);
+  }
+  .arc.warn {
+    stroke: var(--warn);
+  }
+  .arc.danger {
+    stroke: var(--danger);
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7));
   }
 
   .meter-inner {
     position: absolute;
-    inset: 12px;
+    inset: 62px;
     border-radius: 50%;
-    background: var(--card-solid);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -302,8 +355,8 @@
 
   .meter-value {
     font-family: var(--font-display);
-    font-size: 28px;
-    line-height: 34px;
+    font-size: 20px;
+    line-height: 24px;
     font-weight: 600;
     color: var(--text);
   }

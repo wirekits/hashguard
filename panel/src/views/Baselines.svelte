@@ -5,6 +5,7 @@
   import Icon from "../components/Icon.svelte";
   import InfoBar from "../components/InfoBar.svelte";
   import ProgressRing from "../components/ProgressRing.svelte";
+  import HashBytes from "../components/HashBytes.svelte";
 
   let confirming = $state("");
 
@@ -142,8 +143,10 @@
                   <span class="tag c-danger"><Icon name="shieldError" size={16} />Modified</span>
                   <div class="change-body">
                     <span class="mono selectable">{m.path}</span>
-                    <span class="caption mono selectable old">was {m.old_sha256}</span>
-                    <span class="caption mono selectable">now {m.new_sha256}</span>
+                    <span class="eyebrow">Expected</span>
+                    <HashBytes hash={m.old_sha256} />
+                    <span class="eyebrow">Actual</span>
+                    <HashBytes hash={m.new_sha256} against={m.old_sha256} />
                   </div>
                 </div>
               {/each}
@@ -315,9 +318,8 @@
     min-width: 0;
     word-break: break-all;
   }
-  .old {
-    text-decoration: line-through;
-    color: var(--text-3);
+  .change-body .eyebrow {
+    margin-top: 8px;
   }
   @media (max-width: 1100px) {
     .layout {
