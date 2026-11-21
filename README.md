@@ -1,11 +1,16 @@
 # hashguard
 
-A small Windows command-line tool, written in Rust, that checks whether the
-executables on your machine are still what they claim to be.
+A Windows tool, written in Rust, that checks whether the executables on your
+machine are still what they claim to be. It ships as two programs built on one
+core library:
 
-It combines three independent checks:
+- **`hashguard.exe`**, a command-line tool for scripts and CI;
+- **`hashguard-panel.exe`**, a desktop app (Tauri + Svelte) styled after
+  Windows 11, with a results dashboard.
 
-1. **Authenticode verification.** Calls `WinVerifyTrust` directly. Most Windows
+## What it checks
+
+1. **Authenticode signatures.** Calls `WinVerifyTrust` directly. Most Windows
    system files are not signed individually; their hashes are listed in signed
    catalog (`.cat`) files, so hashguard falls back to a catalog lookup, the same
    way Windows itself does.
@@ -18,20 +23,29 @@ It combines three independent checks:
    `invoice.pdf.exe` style names, unsigned binaries in user-writable folders.
    You can also supply a blocklist of known-bad hashes.
 
-## Why this works
-
 Modern Windows binaries are signed. Changing even one byte of a signed file
-breaks its digest, and an attacker cannot produce a valid Microsoft signature for
-altered code. So a mismatch is a strong signal; hashguard reports it as `DANGER`.
+breaks its digest, and an attacker cannot produce a valid Microsoft signature
+for altered code, so a mismatch is reported as `DANGER`.
 
 ## What it is not
 
 hashguard is an integrity and triage tool, **not an antivirus**. A file with no
 findings is not proven safe (malware can be validly signed with a stolen or
-purchased certificate), and a finding means "inspect this", not "this is malware".
-It also does not read file contents for malicious behaviour.
+purchased certificate), and a finding means "inspect this", not "this is
+malware". It does not analyse what a file does.
 
-## Usage
+## Desktop panel
+
+- Windows 11 look: Mica backdrop, navigation pane, light and dark theme that
+  follow the system (solid background on Windows 10).
+- Scan dashboard: verdict banner, headline tiles, distribution by severity,
+  top signing publishers, and a filterable, searchable file list with a details
+  pane (copy hash, show in Explorer).
+- Live progress with cancel, JSON export, blocklist support.
+- Baselines: create, verify with a clear diff, delete.
+- Interface in Russian.
+
+## Command line
 
 ```powershell
 # Scan a folder; only files with findings are shown
@@ -53,16 +67,7 @@ hashguard hash setup.exe
 ```
 
 Exit codes: `0` clean, `1` error, `2` danger found (`scan`) or differences found
-(`verify`), so it can be used in scripts and CI.
-
-### Example
-
-```
-[DANGER] C:\Users\bob\AppData\Local\Temp\svchost.exe
-         sha256 621ba393...
-         unsigned
-         - 'svchost.exe' is a core Windows process name but lives outside the system directories
-```
+(`verify`).
 
 Scanning a stock `C:\Windows\System32` (about 6,200 binaries) takes roughly 35
 seconds in a release build and reports no `DANGER` results.
@@ -78,26 +83,35 @@ seconds in a release build and reports no `DANGER` results.
 
 ## Build
 
-Requires Rust (stable) and Windows.
+Requires Windows, Rust (stable) and Node.js LTS.
 
 ```powershell
-cargo build --release
-cargo test
+# CLI
+cargo build --release -p hashguard
+
+# Desktop panel (needs the Tauri CLI: cargo install tauri-cli)
+cd panel
+npm ci
+cargo tauri build --no-bundle
+
+# Tests and lints
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The binary is `target\release\hashguard.exe`. Hashing, baselines and heuristics
-build and test on any OS; signature verification is Windows-only.
+Binaries land in `target\release\`. For UI work without Rust, `npm run dev` in
+`panel/` serves the interface in a browser with a fake backend (dev builds only).
 
 ## Project layout
 
-| File                  | Purpose                                              |
-|-----------------------|------------------------------------------------------|
-| `src/signature.rs`    | `WinVerifyTrust` + catalog lookup via `windows-sys`  |
-| `src/heuristics.rs`   | Detection rules and severity levels                  |
-| `src/baseline.rs`     | Snapshot format and diffing                          |
-| `src/scan.rs`         | Parallel directory scanning (rayon)                  |
-| `src/pe.rs`           | PE header detection (`MZ` / `PE\0\0`)                |
-| `src/hashing.rs`      | Streaming SHA-256                                    |
+| Path                         | Purpose                                             |
+|------------------------------|-----------------------------------------------------|
+| `crates/core/`               | Library: hashing, signatures, baselines, heuristics |
+| `crates/core/src/signature.rs` | `WinVerifyTrust` + catalog lookup via `windows-sys` |
+| `crates/core/src/scan.rs`    | Parallel scanning (rayon) with progress and cancel  |
+| `crates/cli/`                | `hashguard` command-line tool                       |
+| `panel/src-tauri/`           | Tauri shell: commands over the core, Mica backdrop  |
+| `panel/src/`                 | Svelte 5 interface                                  |
 
 ## License
 
