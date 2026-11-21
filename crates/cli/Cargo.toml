@@ -13,5 +13,8 @@ categories = ["command-line-utilities"]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 colored = "2"
+ctrlc = "3"
 hashguard-core = { path = "../core" }
+rustyline = "14"
 serde_json = "1"
+terminal_size = "0.3"

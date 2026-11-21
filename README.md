@@ -44,6 +44,20 @@ malware". It does not analyse what a file does.
 - Live progress with cancel, JSON export, blocklist support.
 - Baselines: create, verify with a clear diff, delete.
 
+## Interactive shell
+
+Run `hashguard` with no arguments in a terminal to open the shell: a banner, a
+prompt, Tab completion and command history.
+
+```text
+/scan [path] [--all]     /hash <file>           /baseline <name> [path]
+/verify <name> [path]    /baselines             /last [danger|warn|info|all]
+/export <file>           /cd <folder>           /help   /exit
+```
+
+Scans show a live progress bar and stop on Ctrl-C. Baselines are stored in the
+same folder as the desktop panel, so both tools see the same list.
+
 ## Command line
 
 ```powershell

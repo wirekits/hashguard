@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -8,17 +9,18 @@ use hashguard_core::hashing;
 use hashguard_core::heuristics::Level;
 use hashguard_core::scan::{self, ScanOptions};
 
+mod repl;
 mod report;
 
 #[derive(Parser)]
 #[command(
     name = "hashguard",
     version,
-    about = "Windows binary integrity checker: hashes, Authenticode signatures, baselines"
+    about = "Windows binary integrity checker: hashes, Authenticode signatures, baselines. Run without arguments for the interactive shell"
 )]
 struct Cli {
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -60,7 +62,16 @@ enum Command {
 }
 
 fn run() -> Result<ExitCode> {
-    match Cli::parse().command {
+    let Some(command) = Cli::parse().command else {
+        // No arguments: open the shell in a terminal, show help when piped.
+        if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+            return repl::run();
+        }
+        Cli::command().print_help()?;
+        return Ok(ExitCode::from(2));
+    };
+
+    match command {
         Command::Hash { file } => {
             let digest = hashing::sha256_file(&file)
                 .with_context(|| format!("cannot read {}", file.display()))?;

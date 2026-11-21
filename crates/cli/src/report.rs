@@ -34,8 +34,14 @@ fn sig_text(r: &FileReport) -> String {
 }
 
 pub fn print_scan(reports: &[FileReport], errors: &[(String, String)], show_all: bool) {
+    let min = if show_all { Level::Ok } else { Level::Info };
+    print_scan_from(reports, errors, min);
+}
+
+/// Print every file at `min` severity or worse, then the summary.
+pub fn print_scan_from(reports: &[FileReport], errors: &[(String, String)], min: Level) {
     for r in reports {
-        if !show_all && r.level == Level::Ok {
+        if r.level < min {
             continue;
         }
         println!("[{}] {}", level_tag(r.level), r.path);
