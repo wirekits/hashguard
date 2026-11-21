@@ -22,9 +22,7 @@
   const progress = $derived(scan.total ? scan.done / scan.total : 0);
   const primary = $derived(scan.quick[0]);
 
-  // Four concentric rings, outermost = clean, innermost = danger: reading inward
-  // goes deeper, like the levels on the site. Small counts are boosted so a single
-  // dangerous file is still visible.
+  // Rings from clean (outer) to danger (inner); small counts are boosted to stay visible.
   const boost = (n: number) => (!total || !n ? 0 : Math.max(0.06, Math.min(1, Math.sqrt(n / total))));
   const rings = $derived([
     { r: 104, tone: "ok", frac: state === "running" ? progress : cleanShare },

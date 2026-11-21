@@ -1,6 +1,5 @@
 <script lang="ts">
-  // A SHA-256 drawn as 32 byte cells. With `against`, every byte that differs
-  // from the other hash lights up, so a modified file reads at a glance.
+  // SHA-256 as 32 byte cells; with `against`, differing bytes light up.
   let { hash, against = "" }: { hash: string; against?: string } = $props();
 
   const bytes = $derived(hash.match(/.{1,2}/g) ?? []);

@@ -72,6 +72,45 @@ fn is_user_writable(path: &Path) -> bool {
     USER_WRITABLE_MARKERS.iter().any(|m| p.contains(m))
 }
 
+/// Hardware and driver vendors whose valid signatures in system folders are normal.
+const TRUSTED_VENDORS: &[&str] = &[
+    "nvidia",
+    "advanced micro devices",
+    "intel",
+    "realtek",
+    "qualcomm",
+    "broadcom",
+    "mediatek",
+    "marvell",
+    "logitech",
+    "dolby",
+    "synaptics",
+    "elan microelectronics",
+    "asmedia",
+    "lunarg",
+    "vmware",
+    "oracle",
+    "razer",
+    "corsair",
+    "steelseries",
+    "samsung electronics",
+    "western digital",
+    "seagate",
+    "dell",
+    "hp inc",
+    "lenovo",
+    "asustek",
+    "micro-star",
+    "gigabyte",
+];
+
+fn is_trusted_vendor(signer: &Option<String>) -> bool {
+    signer
+        .as_deref()
+        .map(str::to_lowercase)
+        .is_some_and(|s| TRUSTED_VENDORS.iter().any(|v| s.contains(v)))
+}
+
 fn is_microsoft(signer: &Option<String>) -> bool {
     signer
         .as_deref()
@@ -158,7 +197,7 @@ pub fn evaluate(
             ),
         ),
         SigStatus::Valid => {
-            if in_system && !is_microsoft(&sig.signer) {
+            if in_system && !is_microsoft(&sig.signer) && !is_trusted_vendor(&sig.signer) {
                 flag(
                     Level::Info,
                     format!(
@@ -219,6 +258,34 @@ mod tests {
         );
         assert_eq!(l, Level::Ok);
         assert!(f.is_empty());
+    }
+
+    #[test]
+    fn trusted_vendor_driver_in_system32_is_ok() {
+        let (l, f) = eval(
+            "C:\\Windows\\System32\\nvapi64.dll",
+            sig(SigStatus::Valid, Some("NVIDIA Corporation"), None),
+        );
+        assert_eq!(l, Level::Ok);
+        assert!(f.is_empty());
+    }
+
+    #[test]
+    fn unknown_vendor_in_system32_is_info() {
+        let (l, _) = eval(
+            "C:\\Windows\\System32\\thing.dll",
+            sig(SigStatus::Valid, Some("Some Small Vendor Ltd"), None),
+        );
+        assert_eq!(l, Level::Info);
+    }
+
+    #[test]
+    fn trusted_vendor_cannot_sign_svchost() {
+        let (l, _) = eval(
+            "C:\\Windows\\System32\\svchost.exe",
+            sig(SigStatus::Valid, Some("NVIDIA Corporation"), None),
+        );
+        assert_eq!(l, Level::Danger);
     }
 
     #[test]

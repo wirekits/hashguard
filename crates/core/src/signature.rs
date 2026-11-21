@@ -156,7 +156,24 @@ mod imp {
 
         // 1. Embedded signature.
         let (code, signer) = unsafe { check_file(&wpath) };
-        if code == 0 || !should_try_catalog(code) {
+        if code == 0 {
+            return SigInfo {
+                status: SigStatus::Valid,
+                signer,
+                via_catalog: false,
+                detail: None,
+            };
+        }
+        if !should_try_catalog(code) {
+            // A file listed in a signed catalog is trusted even if its embedded chain fails.
+            if let Ok(Some((0, catalog_signer))) = unsafe { check_catalog(path, &wpath) } {
+                return SigInfo {
+                    status: SigStatus::Valid,
+                    signer: catalog_signer,
+                    via_catalog: true,
+                    detail: None,
+                };
+            }
             let (status, detail) = classify(code);
             return SigInfo {
                 status,
