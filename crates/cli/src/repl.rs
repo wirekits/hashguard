@@ -297,17 +297,16 @@ impl Shell {
         let cwd = std::env::current_dir()
             .map(|p| p.display().to_string())
             .unwrap_or_default();
-        let left: Vec<(String, Kind)> = vec![
+        let mut left: Vec<(String, Kind)> = vec![
             ("Welcome back!".into(), Kind::Bold),
             (String::new(), Kind::Plain),
-            ("┏━━━━━━━┓".into(), Kind::Plain),
-            ("┃   ✓   ┃".into(), Kind::Plain),
-            ("┗┓     ┏┛".into(), Kind::Plain),
-            ("  ┗━━━┛".into(), Kind::Plain),
+        ];
+        left.extend(pixel_art(SHIELD).into_iter().map(|l| (l, Kind::Plain)));
+        left.extend([
             (String::new(), Kind::Plain),
             (format!("Windows · {threads} threads"), Kind::Dim),
             (cwd, Kind::Dim),
-        ];
+        ]);
 
         let mut right: Vec<(String, Kind)> = vec![
             ("Tips for getting started".into(), Kind::Bold),
@@ -352,6 +351,38 @@ impl Shell {
         );
         println!();
     }
+}
+
+/// Pixel grid of the logo: '#' is a lit pixel, two rows share one text line.
+const SHIELD: &[&str] = &[
+    ".#########.",
+    "###########",
+    "########.##",
+    "#######.###",
+    "##.###.####",
+    "###.#.#####",
+    ".###.#####.",
+    "..#######..",
+    "...#####...",
+    "....###....",
+];
+
+/// Turn a pixel grid into text with half-block characters.
+fn pixel_art(rows: &[&str]) -> Vec<String> {
+    rows.chunks(2)
+        .map(|pair| {
+            let top = pair[0].as_bytes();
+            let bottom = pair.get(1).map(|r| r.as_bytes()).unwrap_or(&[]);
+            (0..top.len())
+                .map(|x| match (top[x] == b'#', bottom.get(x) == Some(&b'#')) {
+                    (true, true) => '█',
+                    (true, false) => '▀',
+                    (false, true) => '▄',
+                    (false, false) => ' ',
+                })
+                .collect()
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy)]
@@ -704,6 +735,18 @@ mod tests {
         assert_eq!(num(999), "999");
         assert_eq!(num(6210), "6,210");
         assert_eq!(num(1234567), "1,234,567");
+    }
+
+    #[test]
+    fn pixel_art_pairs_rows_into_half_blocks() {
+        assert_eq!(pixel_art(&["#.#.", "##.."]), vec!["█▄▀ "]);
+    }
+
+    #[test]
+    fn shield_is_five_lines_of_equal_width() {
+        let art = pixel_art(SHIELD);
+        assert_eq!(art.len(), 5);
+        assert!(art.iter().all(|l| l.chars().count() == 11));
     }
 
     #[test]
