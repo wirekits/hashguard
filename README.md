@@ -43,7 +43,6 @@ malware". It does not analyse what a file does.
   pane (copy hash, show in Explorer).
 - Live progress with cancel, JSON export, blocklist support.
 - Baselines: create, verify with a clear diff, delete.
-- Interface in Russian.
 
 ## Command line
 

@@ -128,14 +128,41 @@ pub fn quick_paths() -> Vec<QuickPath> {
         }
     };
     add("System32", env("SystemRoot").map(|p| p.join("System32")));
-    add("Загрузки", env("USERPROFILE").map(|p| p.join("Downloads")));
-    add(
-        "Рабочий стол",
-        env("USERPROFILE").map(|p| p.join("Desktop")),
-    );
+    add("Downloads", env("USERPROFILE").map(|p| p.join("Downloads")));
+    add("Desktop", env("USERPROFILE").map(|p| p.join("Desktop")));
     add("Temp", env("TEMP"));
     add("Program Files", env("ProgramFiles"));
     out
+}
+
+#[derive(Serialize)]
+pub struct SystemInfo {
+    os: String,
+    build: u32,
+    cores: usize,
+    backdrop: &'static str,
+}
+
+/// Facts shown on the overview page.
+#[tauri::command]
+pub fn system_info(state: State<'_, Backdrop>) -> SystemInfo {
+    #[cfg(windows)]
+    let build = windows_build();
+    #[cfg(not(windows))]
+    let build = 0;
+    let os = match build {
+        0 => "Unknown OS".to_string(),
+        b if b >= 22000 => "Windows 11".to_string(),
+        _ => "Windows 10".to_string(),
+    };
+    SystemInfo {
+        os,
+        build,
+        cores: std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1),
+        backdrop: state.0,
+    }
 }
 
 #[tauri::command]
@@ -146,7 +173,7 @@ pub async fn start_scan(
     blocklist: Option<String>,
 ) -> CmdResult<ScanResultDto> {
     if state.scanning.swap(true, Ordering::SeqCst) {
-        return Err("Сканирование уже выполняется".into());
+        return Err("A scan is already running".into());
     }
     state.cancel.store(false, Ordering::SeqCst);
     let cancel = state.cancel.clone();
@@ -219,7 +246,7 @@ fn safe_name(name: &str) -> CmdResult<String> {
     if ok {
         Ok(name.to_string())
     } else {
-        Err("Название: до 64 символов, только буквы, цифры, пробел, «-» и «_»".into())
+        Err("Name: up to 64 characters; letters, digits, space, '-' and '_' only".into())
     }
 }
 
@@ -267,14 +294,14 @@ pub async fn create_baseline(
     let name = safe_name(&name)?;
     let target = baseline_path(&app, &name)?;
     if target.exists() {
-        return Err(format!("Эталон «{name}» уже существует"));
+        return Err(format!("A baseline named \"{name}\" already exists"));
     }
     let root = PathBuf::from(path.trim());
 
     tauri::async_runtime::spawn_blocking(move || -> CmdResult<BaselineInfo> {
         let (files, _failures) = scan::hash_tree(&root).map_err(err)?;
         if files.is_empty() {
-            return Err("В папке нет исполняемых файлов".into());
+            return Err("No executable files found in this folder".into());
         }
         let b = Baseline::new(&root, files);
         b.save(&target).map_err(err)?;
@@ -313,7 +340,7 @@ pub fn delete_baseline(app: AppHandle, name: String) -> CmdResult<()> {
 #[tauri::command]
 pub fn reveal_in_explorer(path: String) -> CmdResult<()> {
     if !Path::new(&path).exists() {
-        return Err("Файл не найден".into());
+        return Err("File not found".into());
     }
     #[cfg(windows)]
     {

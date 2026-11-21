@@ -2,7 +2,7 @@
   let { size = 20 }: { size?: number } = $props();
 </script>
 
-<svg class="ring" viewBox="0 0 20 20" width={size} height={size} role="progressbar" aria-label="Выполняется">
+<svg class="ring" viewBox="0 0 20 20" width={size} height={size} role="progressbar" aria-label="Working">
   <circle cx="10" cy="10" r="8" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" />
 </svg>
 

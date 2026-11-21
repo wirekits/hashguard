@@ -1,10 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { ui, scan, loadQuickPaths, refreshBaselines, type View } from "./lib/app.svelte";
+  import {
+    ui,
+    scan,
+    loadQuickPaths,
+    loadSystemInfo,
+    refreshBaselines,
+    type View,
+  } from "./lib/app.svelte";
   import { backdrop } from "./lib/api";
-  import { fmtNum } from "./lib/format";
+  import { fmtNum, timeAgo } from "./lib/format";
   import Icon, { type IconName } from "./components/Icon.svelte";
+  import Overview from "./views/Overview.svelte";
   import Scanner from "./views/Scanner.svelte";
   import Baselines from "./views/Baselines.svelte";
   import About from "./views/About.svelte";
@@ -13,9 +21,10 @@
   let maximized = $state(false);
 
   const nav: { id: View; label: string; icon: IconName }[] = [
-    { id: "scan", label: "Сканер", icon: "shieldCheck" },
-    { id: "baselines", label: "Эталоны", icon: "database" },
-    { id: "about", label: "О программе", icon: "info" },
+    { id: "overview", label: "Overview", icon: "grid" },
+    { id: "scan", label: "Scan", icon: "search" },
+    { id: "baselines", label: "Baselines", icon: "database" },
+    { id: "about", label: "About", icon: "info" },
   ];
 
   const last = $derived.by(() => {
@@ -35,6 +44,7 @@
       .then((b) => document.documentElement.classList.toggle("mica", b === "mica"))
       .catch(() => {});
     loadQuickPaths();
+    loadSystemInfo();
     refreshBaselines();
     let unlisten: (() => void) | undefined;
     const sync = async () => (maximized = await win.isMaximized());
@@ -53,10 +63,10 @@
     <span class="app-title" data-tauri-drag-region>hashguard</span>
 
     <div class="caption-buttons">
-      <button class="cap" onclick={() => win.minimize()} aria-label="Свернуть">
+      <button class="cap" onclick={() => win.minimize()} aria-label="Minimize">
         <svg viewBox="0 0 10 10" width="10" height="10"><path d="M0 5.5h10" stroke="currentColor" /></svg>
       </button>
-      <button class="cap" onclick={() => win.toggleMaximize()} aria-label={maximized ? "Восстановить" : "Развернуть"}>
+      <button class="cap" onclick={() => win.toggleMaximize()} aria-label={maximized ? "Restore" : "Maximize"}>
         {#if maximized}
           <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor">
             <path d="M2.5 2.5V1.5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1" /><rect x=".5" y="2.5" width="7" height="7" rx="1" />
@@ -67,14 +77,14 @@
           </svg>
         {/if}
       </button>
-      <button class="cap close" onclick={() => win.close()} aria-label="Закрыть">
+      <button class="cap close" onclick={() => win.close()} aria-label="Close">
         <svg viewBox="0 0 10 10" width="10" height="10"><path d="m.5.5 9 9m0-9-9 9" stroke="currentColor" /></svg>
       </button>
     </div>
   </header>
 
   <div class="body">
-    <nav class="pane" aria-label="Разделы">
+    <nav class="pane" aria-label="Sections">
       {#each nav as item}
         <button
           class="nav-item"
@@ -89,25 +99,30 @@
 
       <div class="spacer"></div>
 
-      {#if last}
-        <button class="last card" onclick={() => (ui.view = "scan")}>
-          <span class="caption">Последняя проверка</span>
-          <span class="body-strong num">{fmtNum(last.total)} файлов</span>
-          <span class="caption num">
-            {#if last.danger}<span class="c-danger">{last.danger} опасн.</span>
-            {:else if last.warn}<span class="c-warn">{last.warn} подозрит.</span>
-            {:else}<span class="c-ok">без критичных находок</span>{/if}
+      <button class="last card" onclick={() => (ui.view = last ? "scan" : "overview")}>
+        <span class="status-dot {last ? (last.danger ? 'danger' : last.warn ? 'warn' : 'ok') : 'idle'}"></span>
+        <span class="last-text">
+          <span class="body-strong">
+            {#if !last}Not scanned yet
+            {:else if last.danger}{fmtNum(last.danger)} dangerous
+            {:else if last.warn}{fmtNum(last.warn)} to review
+            {:else}All clear{/if}
           </span>
-        </button>
-      {/if}
+          <span class="caption num">
+            {#if last}{fmtNum(last.total)} files · {timeAgo(scan.finishedAt)}{:else}Run a scan to get a status{/if}
+          </span>
+        </span>
+      </button>
 
-      <span class="version caption">Версия 0.2.0</span>
+      <span class="version caption">hashguard 0.2.0</span>
     </nav>
 
     <main class="content">
       {#key ui.view}
         <div class="scroll appear">
-          {#if ui.view === "scan"}
+          {#if ui.view === "overview"}
+            <Overview />
+          {:else if ui.view === "scan"}
             <Scanner />
           {:else if ui.view === "baselines"}
             <Baselines />
@@ -177,7 +192,7 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 280px 1fr;
   }
 
   .pane {
@@ -228,11 +243,36 @@
 
   .last {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+    align-items: center;
+    gap: 12px;
     padding: 12px 14px;
     text-align: left;
+  }
+
+  .last-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--text-3);
+  }
+  .status-dot.ok {
+    background: var(--ok);
+    box-shadow: 0 0 0 4px var(--ok-bg);
+  }
+  .status-dot.warn {
+    background: var(--warn);
+    box-shadow: 0 0 0 4px var(--warn-bg);
+  }
+  .status-dot.danger {
+    background: var(--danger);
+    box-shadow: 0 0 0 4px var(--danger-bg);
   }
 
   .last:hover {

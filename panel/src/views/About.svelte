@@ -8,93 +8,130 @@
     {
       icon: "certificate",
       tone: "accent",
-      title: "Подпись Authenticode",
-      text: "Проверка через WinVerifyTrust. Если подписи в файле нет, ищется запись в каталогах Windows (.cat), как это делает сама система.",
+      title: "Authenticode signatures",
+      text: "Verified with WinVerifyTrust. When a file has no embedded signature, hashguard looks it up in the signed Windows catalogs (.cat), exactly like Windows does.",
     },
     {
       icon: "database",
       tone: "ok",
-      title: "Эталоны",
-      text: "SHA-256 всех исполняемых файлов папки сохраняется на чистой системе и потом сверяется с текущим состоянием.",
+      title: "Baselines",
+      text: "The SHA-256 of every executable in a folder is saved on a clean system and later compared with the current state.",
     },
     {
       icon: "warning",
       tone: "warn",
-      title: "Эвристики",
-      text: "Системное имя вне системных папок, чужой издатель у «системного» файла, подпись не совпадает с содержимым, двойное расширение вида invoice.pdf.exe.",
+      title: "Heuristics",
+      text: "A system process name outside system folders, a foreign publisher on a 'system' file, a signature that no longer matches, double extensions like invoice.pdf.exe.",
     },
   ];
 
   const levels: { level: Level; text: string }[] = [
-    { level: "Ok", text: "Подпись действительна, ничего необычного" },
-    { level: "Info", text: "Стоит знать, но не повод для тревоги" },
-    { level: "Warn", text: "Нет подписи там, где она ожидается, или цепочка сертификатов не строится" },
-    { level: "Danger", text: "Файл изменён после подписания, выдаёт себя за системный или есть в списке плохих хешей" },
+    { level: "Ok", text: "Valid signature, nothing unusual" },
+    { level: "Info", text: "Worth knowing, not a reason for alarm" },
+    { level: "Warn", text: "Unsigned where a signature is expected, or the certificate chain does not build" },
+    { level: "Danger", text: "Modified after signing, masquerading as a system file, or on the blocklist" },
   ];
+
+  const stack = ["Rust", "Tauri 2", "Svelte 5", "windows-sys", "rayon"];
 </script>
 
 <div class="page">
-  <h1 class="title">О программе</h1>
+  <h1 class="title">About</h1>
 
-  <section class="card hero">
-    <svg viewBox="0 0 24 24" width="56" height="56" aria-hidden="true">
-      <path fill="var(--accent)" d="M12 2.5 4.5 5.3v5.6c0 4.7 3.2 9 7.5 10.6 4.3-1.6 7.5-5.9 7.5-10.6V5.3L12 2.5z" />
-      <path fill="none" stroke="var(--on-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m8.6 12.2 2.4 2.4 4.4-4.6" />
-    </svg>
-    <div>
+  <div class="layout">
+    <section class="card hero">
+      <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true">
+        <path fill="var(--accent)" d="M12 2.5 4.5 5.3v5.6c0 4.7 3.2 9 7.5 10.6 4.3-1.6 7.5-5.9 7.5-10.6V5.3L12 2.5z" />
+        <path fill="none" stroke="var(--on-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m8.6 12.2 2.4 2.4 4.4-4.6" />
+      </svg>
       <div class="subtitle">hashguard</div>
-      <div class="caption">Версия 0.2.0 · Rust, Tauri, Svelte · MIT</div>
-      <p>Проверка целостности исполняемых файлов Windows: подписи, хеши, эталоны и эвристики.</p>
+      <div class="caption">Version 0.2.0 · MIT license</div>
+      <p>Integrity checking for Windows executables: signatures, hashes, baselines and heuristics.</p>
+      <div class="chips">
+        {#each stack as s}<span class="chip caption">{s}</span>{/each}
+      </div>
+    </section>
+
+    <div class="col">
+      <h2 class="section">What gets checked</h2>
+      <div class="stack">
+        {#each checks as c}
+          <div class="card setting">
+            <div class="glyph {c.tone}"><Icon name={c.icon} size={20} /></div>
+            <div class="setting-text">
+              <span class="body-strong">{c.title}</span>
+              <span class="caption">{c.text}</span>
+            </div>
+          </div>
+        {/each}
+      </div>
+
+      <h2 class="section">Severity levels</h2>
+      <div class="card levels">
+        {#each levels as l}
+          <div class="level-row">
+            <LevelPill level={l.level} />
+            <span class="caption">{l.text}</span>
+          </div>
+        {/each}
+      </div>
+
+      <div class="note">
+        <InfoBar severity="info" title="This is not an antivirus.">
+          A file with no findings is not proven safe: malicious code can carry a genuine signature.
+          A finding means "take a look at this file", not "this is a virus".
+        </InfoBar>
+      </div>
     </div>
-  </section>
-
-  <h2 class="section">Что проверяется</h2>
-  <div class="stack">
-    {#each checks as c}
-      <div class="card setting">
-        <div class="glyph {c.tone}"><Icon name={c.icon} size={20} /></div>
-        <div class="setting-text">
-          <span>{c.title}</span>
-          <span class="caption">{c.text}</span>
-        </div>
-      </div>
-    {/each}
-  </div>
-
-  <h2 class="section">Уровни</h2>
-  <div class="card levels">
-    {#each levels as l}
-      <div class="level-row">
-        <LevelPill level={l.level} />
-        <span class="caption">{l.text}</span>
-      </div>
-    {/each}
-  </div>
-
-  <div class="note">
-    <InfoBar severity="info" title="Это не антивирус.">
-      Файл без находок не обязательно безопасен: вредоносный код может быть подписан настоящим
-      сертификатом. Находка означает «проверь этот файл», а не «это вирус».
-    </InfoBar>
   </div>
 </div>
 
 <style>
   .page {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 28px 40px 40px;
+    padding: 28px 36px 36px;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 3fr;
+    gap: 16px;
+    align-items: start;
+    margin-top: 20px;
   }
   .hero {
+    position: sticky;
+    top: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 20px;
-    margin-top: 20px;
-    padding: 20px;
+    gap: 4px;
+    padding: 32px 24px;
+    text-align: center;
+  }
+  .hero svg {
+    margin-bottom: 12px;
   }
   .hero p {
-    margin: 6px 0 0;
+    margin: 10px 0 0;
     color: var(--text-2);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 18px;
+  }
+  .chip {
+    padding: 2px 10px;
+    border-radius: 12px;
+    background: var(--neutral-bg);
+    border: 1px solid var(--stroke);
+  }
+  .col {
+    min-width: 0;
+  }
+  .col .section:first-child {
+    margin-top: 0;
   }
   .stack {
     display: flex;
@@ -129,5 +166,13 @@
   }
   .note {
     margin-top: 20px;
+  }
+  @media (max-width: 1100px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .hero {
+      position: static;
+    }
   }
 </style>

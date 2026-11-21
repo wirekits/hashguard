@@ -1,16 +1,8 @@
 <script lang="ts">
-  import { scan, baselines, ui, runScan, stopScan, type Filter } from "../lib/app.svelte";
+  import { scan, runScan, stopScan, type Filter } from "../lib/app.svelte";
   import { pickFolder, pickFile, saveTextFile } from "../lib/api";
-  import {
-    fmtNum,
-    formatDuration,
-    levelLabel,
-    pluralFiles,
-    sigLabel,
-    splitPath,
-    tFinding,
-  } from "../lib/format";
-  import type { Level } from "../lib/types";
+  import { fmtNum, formatDuration, levelLabel, pct, pluralFiles, sigLabel, splitPath } from "../lib/format";
+  import type { Level, SigStatus } from "../lib/types";
   import Icon from "../components/Icon.svelte";
   import LevelPill, { levelTone } from "../components/LevelPill.svelte";
   import InfoBar from "../components/InfoBar.svelte";
@@ -18,7 +10,7 @@
   import ProgressRing from "../components/ProgressRing.svelte";
   import FileDetails from "../components/FileDetails.svelte";
 
-  const PAGE = 150;
+  const PAGE = 200;
   let limit = $state(PAGE);
   let showBlocklist = $state(false);
   let notice = $state("");
@@ -31,16 +23,24 @@
     return c;
   });
   const sig = $derived.by(() => {
-    let valid = 0;
-    let unsigned = 0;
-    let invalid = 0;
+    const c: Record<SigStatus, number> = { Valid: 0, Unsigned: 0, Invalid: 0, Error: 0 };
+    let catalog = 0;
     for (const r of reports) {
-      if (r.signature.status === "Valid") valid++;
-      else if (r.signature.status === "Unsigned") unsigned++;
-      else if (r.signature.status === "Invalid") invalid++;
+      c[r.signature.status]++;
+      if (r.signature.status === "Valid" && r.signature.via_catalog) catalog++;
     }
-    return { valid, unsigned, invalid };
+    return { ...c, catalog };
   });
+  const sigRows = $derived(
+    [
+      { label: "Signed, embedded", n: sig.Valid - sig.catalog },
+      { label: "Signed, via catalog", n: sig.catalog },
+      { label: "Unsigned", n: sig.Unsigned },
+      { label: "Invalid signature", n: sig.Invalid },
+      { label: "Not checked", n: sig.Error },
+    ].sort((a, b) => b.n - a.n),
+  );
+  const sigMax = $derived(Math.max(1, ...sigRows.map((r) => r.n)));
   const publishers = $derived.by(() => {
     const m = new Map<string, number>();
     for (const r of reports) {
@@ -64,7 +64,7 @@
     );
   });
   const shown = $derived(filtered.slice(0, limit));
-  const pct = $derived(scan.total ? (scan.done / scan.total) * 100 : 0);
+  const progress = $derived(scan.total ? (scan.done / scan.total) * 100 : 0);
   const verdict = $derived(counts.Danger ? "danger" : counts.Warn ? "warn" : "ok");
 
   $effect(() => {
@@ -76,20 +76,17 @@
   // Worst first: problems lead the bar, the legend and the filter.
   const levels: Level[] = ["Danger", "Warn", "Info", "Ok"];
   const filters: { id: Filter; label: string }[] = [
-    { id: "all", label: "Все" },
+    { id: "all", label: "All" },
     ...levels.map((l) => ({ id: l as Filter, label: levelLabel[l] })),
   ];
 
-  const share = (n: number) =>
-    total ? `${((n / total) * 100).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} %` : "0 %";
-
   async function chooseFolder() {
-    const p = await pickFolder("Папка для проверки");
+    const p = await pickFolder("Folder to scan");
     if (p) scan.path = p;
   }
 
   async function chooseBlocklist() {
-    const p = await pickFile("Список известных вредоносных хешей");
+    const p = await pickFile("List of known-bad hashes");
     if (p) scan.blocklist = p;
   }
 
@@ -97,28 +94,21 @@
     if (!scan.result) return;
     try {
       const saved = await saveTextFile("hashguard-report.json", JSON.stringify(scan.result.reports, null, 2));
-      if (saved) notice = "Сохранено";
-    } catch (e) {
-      notice = "Ошибка";
+      if (saved) notice = "Saved";
+    } catch {
+      notice = "Failed";
     }
     setTimeout(() => (notice = ""), 2500);
   }
 </script>
 
 <div class="page">
-  <h1 class="title">Сканер</h1>
+  <h1 class="title">Scan</h1>
 
   <!-- Target -->
   <section class="card target">
-    <div class="row-head">
-      <div class="glyph accent"><Icon name="folder" size={20} /></div>
-      <div class="head-text">
-        <span>Папка для проверки</span>
-        <span class="caption">Все .exe, .dll и .sys внутри, включая вложенные папки</span>
-      </div>
-    </div>
-
     <div class="target-row">
+      <div class="glyph accent"><Icon name="folder" size={20} /></div>
       <input
         class="textbox mono"
         placeholder="C:\Windows\System32"
@@ -126,14 +116,14 @@
         onkeydown={(e) => e.key === "Enter" && runScan()}
         disabled={scan.running}
         spellcheck="false"
-        aria-label="Путь для сканирования"
+        aria-label="Folder to scan"
       />
-      <button class="btn" onclick={chooseFolder} disabled={scan.running}>Обзор…</button>
+      <button class="btn" onclick={chooseFolder} disabled={scan.running}>Browse…</button>
       {#if scan.running}
-        <button class="btn" onclick={stopScan}><Icon name="stop" size={16} />Остановить</button>
+        <button class="btn" onclick={stopScan}><Icon name="stop" size={16} />Stop</button>
       {:else}
         <button class="btn accent" onclick={runScan} disabled={!scan.path.trim()}>
-          <Icon name="search" size={16} />Сканировать
+          <Icon name="search" size={16} />Scan
         </button>
       {/if}
     </div>
@@ -142,11 +132,11 @@
       <div class="progress">
         <ProgressRing />
         <span class="num">
-          {#if scan.total}Проверено {fmtNum(scan.done)} из {fmtNum(scan.total)}{:else}Поиск исполняемых файлов…{/if}
+          {#if scan.total}Checked {fmtNum(scan.done)} of {fmtNum(scan.total)} files{:else}Looking for executables…{/if}
         </span>
-        <span class="caption num pct">{scan.total ? `${Math.floor(pct)} %` : ""}</span>
+        <span class="caption num pct">{scan.total ? `${Math.floor(progress)}%` : ""}</span>
       </div>
-      <div class="bar"><div class="bar-fill" style="width: {pct}%"></div></div>
+      <div class="bar"><div class="bar-fill" style="width: {progress}%"></div></div>
     {:else}
       <div class="quick">
         {#each scan.quick as q}
@@ -154,195 +144,179 @@
             {q.label}
           </button>
         {/each}
+        <button class="pill ghost" onclick={() => (showBlocklist = !showBlocklist)} aria-expanded={showBlocklist}>
+          <Icon name="list" size={14} />Blocklist{scan.blocklist ? " · on" : ""}
+        </button>
       </div>
     {/if}
 
-    <button class="expander" onclick={() => (showBlocklist = !showBlocklist)} aria-expanded={showBlocklist}>
-      <span>Список известных вредоносных хешей</span>
-      <span class="caption">{scan.blocklist ? "подключён" : "необязательно"}</span>
-      <span class="chev" class:open={showBlocklist}><Icon name="chevronDown" size={14} /></span>
-    </button>
-    {#if showBlocklist}
-      <div class="target-row blocklist">
+    {#if showBlocklist && !scan.running}
+      <div class="target-row blocklist appear">
         <input
           class="textbox mono"
-          placeholder="Текстовый файл, по одному SHA-256 в строке"
+          placeholder="Text file with known-bad SHA-256 hashes, one per line"
           bind:value={scan.blocklist}
-          disabled={scan.running}
           spellcheck="false"
-          aria-label="Файл со списком хешей"
+          aria-label="Blocklist file"
         />
-        <button class="btn" onclick={chooseBlocklist} disabled={scan.running}>Выбрать…</button>
+        <button class="btn" onclick={chooseBlocklist}>Choose…</button>
+        {#if scan.blocklist}<button class="btn subtle" onclick={() => (scan.blocklist = "")}>Remove</button>{/if}
       </div>
     {/if}
   </section>
 
   {#if scan.error}
-    <InfoBar severity="danger" title="Не удалось выполнить проверку">{scan.error}</InfoBar>
+    <InfoBar severity="danger" title="The scan could not run">{scan.error}</InfoBar>
   {/if}
 
   {#if scan.result}
     {@const res = scan.result}
-    <div class="dash appear">
-      <InfoBar
-        severity={verdict}
-        title={counts.Danger
-          ? `Найдены опасные файлы: ${fmtNum(counts.Danger)}`
-          : counts.Warn
-            ? `Есть подозрительные файлы: ${fmtNum(counts.Warn)}`
-            : "Критичных находок нет"}
-      >
-        {pluralFiles(total)} за {formatDuration(res.elapsed_ms)}{res.cancelled
-          ? " · проверка остановлена, результат неполный"
-          : ""}{res.failures.length ? ` · не удалось прочитать: ${fmtNum(res.failures.length)}` : ""}
-      </InfoBar>
+    <InfoBar
+      severity={verdict}
+      title={counts.Danger
+        ? `Dangerous files found: ${fmtNum(counts.Danger)}`
+        : counts.Warn
+          ? `Files to review: ${fmtNum(counts.Warn)}`
+          : "No critical findings"}
+    >
+      {pluralFiles(total)} in {formatDuration(res.elapsed_ms)}{res.cancelled
+        ? " · stopped early, results are partial"
+        : ""}{res.failures.length ? ` · ${fmtNum(res.failures.length)} unreadable` : ""}
+    </InfoBar>
 
-      <div class="kpis">
-        <StatTile icon="files" tone="accent" label="Проверено файлов" value={fmtNum(total)} sub={`за ${formatDuration(res.elapsed_ms)}`} />
-        <StatTile
-          icon="shieldError"
-          tone={counts.Danger ? "danger" : "neutral"}
-          label="Опасно"
-          value={fmtNum(counts.Danger)}
-          sub={counts.Danger ? "нужно разобраться" : "не найдено"}
-        />
-        <StatTile
-          icon="warning"
-          tone={counts.Warn ? "warn" : "neutral"}
-          label="Подозрительно"
-          value={fmtNum(counts.Warn)}
-          sub={counts.Warn ? "стоит посмотреть" : "не найдено"}
-        />
-        <StatTile
-          icon="shieldCheck"
-          tone="ok"
-          label="Подпись в порядке"
-          value={share(sig.valid)}
-          sub={`${fmtNum(sig.unsigned)} без подписи`}
-        />
-      </div>
+    <div class="kpis">
+      <StatTile icon="files" tone="accent" label="Files checked" value={fmtNum(total)} sub={`in ${formatDuration(res.elapsed_ms)}`} />
+      <StatTile icon="shieldError" tone={counts.Danger ? "danger" : "neutral"} label="Danger" value={fmtNum(counts.Danger)} sub={counts.Danger ? "act on these first" : "none found"} />
+      <StatTile icon="warning" tone={counts.Warn ? "warn" : "neutral"} label="Warning" value={fmtNum(counts.Warn)} sub={counts.Warn ? "worth a look" : "none found"} />
+      <StatTile icon="shieldCheck" tone="ok" label="Valid signatures" value={pct(sig.Valid, total)} sub={`${fmtNum(sig.Unsigned)} unsigned`} />
+    </div>
 
-      <div class="charts">
-        <section class="card chart">
-          <div class="chart-head">
-            <span class="body-strong">Уровни</span>
-            <span class="caption">Распределение файлов по результату</span>
-          </div>
-          <div class="segbar" role="img" aria-label="Распределение по уровням">
-            {#each levels as l}
-              {#if counts[l]}
-                <div class="seg {levelTone[l]}" style="flex-grow: {counts[l]}" title="{levelLabel[l]}: {fmtNum(counts[l])}"></div>
-              {/if}
-            {/each}
-          </div>
-          <div class="legend">
-            {#each levels as l}
-              <button class="legend-row" class:on={scan.filter === l} class:zero={!counts[l]} onclick={() => (scan.filter = scan.filter === l ? "all" : l)}>
-                <LevelPill level={l} />
-                <span class="num count">{fmtNum(counts[l])}</span>
-                <span class="caption num share">{share(counts[l])}</span>
-              </button>
-            {/each}
-          </div>
-        </section>
-
-        <section class="card chart">
-          <div class="chart-head">
-            <span class="body-strong">Издатели</span>
-            <span class="caption">Кем подписаны проверенные файлы</span>
-          </div>
-          {#if publishers.length}
-            <div class="pubs">
-              {#each publishers as [name, n]}
-                <div class="pub" title="{name}: {fmtNum(n)} ({share(n)})">
-                  <span class="pub-name">{name}</span>
-                  <div class="pub-track"><div class="pub-fill" style="width: {(n / pubMax) * 100}%"></div></div>
-                  <span class="num pub-count">{fmtNum(n)}</span>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <div class="caption empty-chart">Нет файлов с действительной подписью</div>
-          {/if}
-          <div class="caption foot num">
-            Без подписи: {fmtNum(sig.unsigned)} · Подпись недействительна: {fmtNum(sig.invalid)}
-          </div>
-        </section>
-      </div>
-
-      <section class="card files" class:split={!!scan.selected}>
-        <div class="files-main">
-          <div class="files-head">
-            <div class="selector" role="tablist" aria-label="Фильтр по уровню">
-              {#each filters as f}
-                <button role="tab" aria-selected={scan.filter === f.id} class="sel-item" class:on={scan.filter === f.id} onclick={() => (scan.filter = f.id)}>
-                  {f.label}
-                  <span class="caption num">{fmtNum(f.id === "all" ? total : counts[f.id as Level])}</span>
-                </button>
-              {/each}
-            </div>
-            <div class="search">
-              <input class="textbox" placeholder="Поиск по пути, издателю, хешу" bind:value={scan.query} spellcheck="false" aria-label="Поиск" />
-              <span class="search-ico"><Icon name="search" size={14} /></span>
-            </div>
-            <button class="btn subtle" onclick={exportJson} title="Экспорт в JSON">
-              <Icon name={notice ? "check" : "download"} size={16} />{notice || "Экспорт"}
-            </button>
-          </div>
-
-          <div class="list" role="list">
-            {#each shown as r (r.path)}
-              {@const p = splitPath(r.path)}
-              <button class="item" class:sel={scan.selected?.path === r.path} onclick={() => (scan.selected = scan.selected?.path === r.path ? null : r)}>
-                <LevelPill level={r.level} label={false} />
-                <span class="item-text">
-                  <span class="item-name">{p.name}</span>
-                  {#if r.findings.length}
-                    <span class="caption item-sub {r.level === 'Info' ? '' : `c-${levelTone[r.level]}`}">{tFinding(r.findings[0])}</span>
-                  {:else}
-                    <span class="caption item-sub mono">{p.dir}</span>
-                  {/if}
-                </span>
-                <span class="caption item-sig">
-                  {r.signature.status === "Valid" ? (r.signature.signer ?? sigLabel.Valid) : sigLabel[r.signature.status]}
-                </span>
-                <span class="item-chev"><Icon name="chevronRight" size={14} /></span>
-              </button>
-            {:else}
-              <div class="caption empty">{total ? "Под этот фильтр ничего не подходит" : "Исполняемые файлы не найдены"}</div>
-            {/each}
-            {#if filtered.length > shown.length}
-              <button class="btn more" onclick={() => (limit += PAGE)}>
-                Показать ещё {fmtNum(Math.min(PAGE, filtered.length - shown.length))}
-              </button>
-            {/if}
-          </div>
+    <div class="charts">
+      <section class="card chart">
+        <div class="chart-head">
+          <span class="body-strong">Severity</span>
+          <span class="caption">How files were classified</span>
         </div>
+        <div class="segbar" role="img" aria-label="Files by severity">
+          {#each levels as l}
+            {#if counts[l]}
+              <div class="seg {levelTone[l]}" style="flex-grow: {counts[l]}" title="{levelLabel[l]}: {fmtNum(counts[l])}"></div>
+            {/if}
+          {/each}
+        </div>
+        <div class="legend">
+          {#each levels as l}
+            <button class="legend-row" class:on={scan.filter === l} class:zero={!counts[l]} onclick={() => (scan.filter = scan.filter === l ? "all" : l)}>
+              <LevelPill level={l} />
+              <span class="num count">{fmtNum(counts[l])}</span>
+              <span class="caption num share">{pct(counts[l], total)}</span>
+            </button>
+          {/each}
+        </div>
+      </section>
 
-        {#if scan.selected}
-          <FileDetails file={scan.selected} onclose={() => (scan.selected = null)} />
+      <section class="card chart">
+        <div class="chart-head">
+          <span class="body-strong">Signatures</span>
+          <span class="caption">How each file proved where it came from</span>
+        </div>
+        <div class="meters">
+          {#each sigRows as r}
+            <div class="meter-row" class:zero={!r.n} title="{r.label}: {fmtNum(r.n)} ({pct(r.n, total)})">
+              <span class="m-name">{r.label}</span>
+              <div class="m-track"><div class="m-fill" style="width: {(r.n / sigMax) * 100}%"></div></div>
+              <span class="num m-count">{fmtNum(r.n)}</span>
+            </div>
+          {/each}
+        </div>
+      </section>
+
+      <section class="card chart">
+        <div class="chart-head">
+          <span class="body-strong">Top publishers</span>
+          <span class="caption">Who signed the files with valid signatures</span>
+        </div>
+        {#if publishers.length}
+          <div class="meters">
+            {#each publishers as [name, n]}
+              <div class="meter-row" title="{name}: {fmtNum(n)} ({pct(n, total)})">
+                <span class="m-name">{name}</span>
+                <div class="m-track"><div class="m-fill" style="width: {(n / pubMax) * 100}%"></div></div>
+                <span class="num m-count">{fmtNum(n)}</span>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="caption empty-chart">No files with a valid signature</div>
         {/if}
       </section>
     </div>
+
+    <section class="card files" class:split={!!scan.selected}>
+      <div class="files-main">
+        <div class="files-head">
+          <div class="selector" role="tablist" aria-label="Filter by severity">
+            {#each filters as f}
+              <button role="tab" aria-selected={scan.filter === f.id} class="sel-item" class:on={scan.filter === f.id} onclick={() => (scan.filter = f.id)}>
+                {f.label}
+                <span class="caption num">{fmtNum(f.id === "all" ? total : counts[f.id as Level])}</span>
+              </button>
+            {/each}
+          </div>
+          <div class="search">
+            <input class="textbox" placeholder="Search path, publisher or hash" bind:value={scan.query} spellcheck="false" aria-label="Search" />
+            <span class="search-ico"><Icon name="search" size={14} /></span>
+          </div>
+          <button class="btn subtle" onclick={exportJson} title="Export as JSON">
+            <Icon name={notice ? "check" : "download"} size={16} />{notice || "Export"}
+          </button>
+        </div>
+
+        <div class="list-head caption">
+          <span></span><span>File</span><span>Signature</span><span>Publisher</span><span></span>
+        </div>
+
+        <div class="list" role="list">
+          {#each shown as r (r.path)}
+            {@const p = splitPath(r.path)}
+            <button class="item" class:sel={scan.selected?.path === r.path} onclick={() => (scan.selected = scan.selected?.path === r.path ? null : r)}>
+              <LevelPill level={r.level} label={false} />
+              <span class="item-text">
+                <span class="item-name">{p.name}</span>
+                {#if r.findings.length}
+                  <span class="caption item-sub {r.level === 'Info' ? '' : `c-${levelTone[r.level]}`}">{r.findings[0]}</span>
+                {:else}
+                  <span class="caption item-sub mono">{p.dir}</span>
+                {/if}
+              </span>
+              <span class="caption item-sig">{sigLabel[r.signature.status]}{r.signature.via_catalog ? " · catalog" : ""}</span>
+              <span class="caption item-pub">{r.signature.signer ?? "—"}</span>
+              <span class="item-chev"><Icon name="chevronRight" size={14} /></span>
+            </button>
+          {:else}
+            <div class="caption empty">{total ? "Nothing matches this filter" : "No executable files found"}</div>
+          {/each}
+          {#if filtered.length > shown.length}
+            <button class="btn more" onclick={() => (limit += PAGE)}>
+              Show {fmtNum(Math.min(PAGE, filtered.length - shown.length))} more
+            </button>
+          {/if}
+        </div>
+      </div>
+
+      {#if scan.selected}
+        <FileDetails file={scan.selected} onclose={() => (scan.selected = null)} />
+      {/if}
+    </section>
   {:else if !scan.running && !scan.error}
-    <div class="features appear">
-      <div class="card feature">
-        <div class="glyph accent"><Icon name="certificate" size={20} /></div>
-        <span class="body-strong">Подписи</span>
-        <span class="caption">Authenticode через WinVerifyTrust, включая каталоги Windows</span>
-      </div>
-      <div class="card feature">
-        <div class="glyph ok"><Icon name="database" size={20} /></div>
-        <span class="body-strong">Эталоны</span>
-        <span class="caption">
-          {baselines.list.length ? `Сохранено: ${baselines.list.length}. ` : ""}Снимок хешей для сверки
-        </span>
-        <button class="btn subtle link" onclick={() => (ui.view = "baselines")}>Открыть<Icon name="chevronRight" size={14} /></button>
-      </div>
-      <div class="card feature">
-        <div class="glyph warn"><Icon name="warning" size={20} /></div>
-        <span class="body-strong">Эвристики</span>
-        <span class="caption">Подмена системных имён, чужой издатель, двойные расширения</span>
+    <div class="card hint appear">
+      <div class="glyph accent"><Icon name="shieldCheck" size={20} /></div>
+      <div>
+        <div class="body-strong">Pick a folder and press Scan</div>
+        <div class="caption">
+          Every .exe, .dll and .sys inside is hashed with SHA-256, its Authenticode signature is
+          verified (including Windows catalogs), and heuristics flag anything that looks out of place.
+        </div>
       </div>
     </div>
   {/if}
@@ -350,9 +324,7 @@
 
 <style>
   .page {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 28px 40px 40px;
+    padding: 28px 36px 36px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -362,7 +334,6 @@
     margin-bottom: 4px;
   }
 
-  /* Target card */
   .target {
     padding: 16px;
     display: flex;
@@ -370,33 +341,33 @@
     gap: 14px;
   }
 
-  .row-head {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .head-text {
-    display: flex;
-    flex-direction: column;
-  }
-
   .target-row {
     display: flex;
+    align-items: center;
     gap: 8px;
   }
 
+  .target-row .glyph {
+    width: 32px;
+    height: 32px;
+    margin-right: 4px;
+  }
+
   .target-row .btn.accent {
-    min-width: 132px;
+    min-width: 120px;
   }
 
   .quick {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    padding-left: 44px;
   }
 
   .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     height: 28px;
     padding: 0 12px;
     border-radius: 14px;
@@ -415,10 +386,22 @@
     color: var(--on-accent);
   }
 
+  .pill.ghost {
+    margin-left: auto;
+    background: transparent;
+    border-style: dashed;
+    color: var(--text-2);
+  }
+
+  .blocklist {
+    padding-left: 44px;
+  }
+
   .progress {
     display: flex;
     align-items: center;
     gap: 12px;
+    padding-left: 44px;
   }
 
   .pct {
@@ -428,7 +411,7 @@
   .bar {
     position: relative;
     height: 3px;
-    margin-top: -6px;
+    margin: -6px 0 0 44px;
   }
 
   .bar::before {
@@ -450,42 +433,6 @@
     transition: width 0.2s linear;
   }
 
-  .expander {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 -16px -16px;
-    padding: 12px 16px;
-    border-top: 1px solid var(--divider);
-    border-radius: 0 0 var(--r-card) var(--r-card);
-    text-align: left;
-  }
-
-  .expander:hover {
-    background: var(--subtle-hover);
-  }
-
-  .chev {
-    margin-left: auto;
-    display: flex;
-    transition: transform 0.15s;
-  }
-
-  .chev.open {
-    transform: rotate(180deg);
-  }
-
-  .blocklist {
-    margin-top: 14px;
-  }
-
-  /* Dashboard */
-  .dash {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
   .kpis {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -494,12 +441,12 @@
 
   .charts {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   }
 
   .chart {
-    padding: 16px;
+    padding: 16px 18px;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -543,7 +490,7 @@
     display: grid;
     grid-template-columns: 1fr 64px 56px;
     align-items: center;
-    height: 34px;
+    height: 32px;
     padding: 0 8px;
     border-radius: var(--r-ctl);
     text-align: left;
@@ -554,8 +501,9 @@
     background: var(--subtle-hover);
   }
 
-  .legend-row.zero {
-    opacity: 0.55;
+  .legend-row.zero,
+  .meter-row.zero {
+    opacity: 0.5;
   }
 
   .count {
@@ -568,50 +516,43 @@
     color: var(--text-3);
   }
 
-  .pubs {
+  .meters {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 13px;
   }
 
-  .pub {
+  .meter-row {
     display: grid;
-    grid-template-columns: minmax(0, 150px) 1fr 56px;
+    grid-template-columns: minmax(0, 140px) 1fr 52px;
     align-items: center;
     gap: 12px;
   }
 
-  .pub-name {
+  .m-name {
     font-size: 13px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .pub-track {
+  .m-track {
     height: 8px;
     border-radius: 4px;
     background: var(--track);
     overflow: hidden;
   }
 
-  .pub-fill {
+  .m-fill {
     height: 100%;
     min-width: 4px;
     border-radius: 4px;
     background: var(--accent);
   }
 
-  .pub-count {
+  .m-count {
     text-align: right;
     font-weight: 600;
-  }
-
-  .foot {
-    margin-top: auto;
-    padding-top: 12px;
-    border-top: 1px solid var(--divider);
-    color: var(--text-3);
   }
 
   .empty-chart {
@@ -623,12 +564,12 @@
   .files {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    height: 560px;
+    height: max(560px, calc(100vh - 150px));
     overflow: hidden;
   }
 
   .files.split {
-    grid-template-columns: minmax(0, 1fr) 330px;
+    grid-template-columns: minmax(0, 1fr) 360px;
   }
 
   .files-main {
@@ -646,7 +587,6 @@
     border-bottom: 1px solid var(--divider);
   }
 
-  /* Never clip a filter: when space runs out, search wraps to its own line. */
   .selector {
     display: flex;
     gap: 2px;
@@ -689,8 +629,8 @@
 
   .search {
     position: relative;
-    flex: 1 1 180px;
-    max-width: 280px;
+    flex: 1 1 200px;
+    max-width: 320px;
   }
 
   .search .textbox {
@@ -705,6 +645,20 @@
     pointer-events: none;
   }
 
+  .list-head,
+  .item {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) 14px;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .list-head {
+    padding: 8px 16px;
+    color: var(--text-3);
+    border-bottom: 1px solid var(--divider);
+  }
+
   .list {
     flex: 1;
     overflow: auto;
@@ -714,20 +668,13 @@
   .item {
     position: relative;
     width: 100%;
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr) minmax(0, 200px) 14px;
-    align-items: center;
-    gap: 12px;
     min-height: 48px;
     padding: 6px 12px;
     border-radius: var(--r-ctl);
     text-align: left;
   }
 
-  .item:hover {
-    background: var(--subtle-hover);
-  }
-
+  .item:hover,
   .item.sel {
     background: var(--subtle-hover);
   }
@@ -752,10 +699,15 @@
 
   .item-name,
   .item-sub,
-  .item-sig {
+  .item-sig,
+  .item-pub {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .item-sub::first-letter {
+    text-transform: uppercase;
   }
 
   .item-sub.mono {
@@ -763,21 +715,19 @@
     font-size: 11.5px;
   }
 
-  .item-sig {
-    text-align: right;
-  }
-
   .item-chev {
     display: flex;
     color: var(--text-3);
   }
 
-  .split .item-sig {
-    display: none;
+  .split .list-head,
+  .split .item {
+    grid-template-columns: 20px minmax(0, 1fr) minmax(0, 120px) 14px;
   }
 
-  .split .item {
-    grid-template-columns: 20px minmax(0, 1fr) 14px;
+  .split .item-pub,
+  .split .list-head span:nth-child(4) {
+    display: none;
   }
 
   .empty {
@@ -790,34 +740,17 @@
     margin: 8px auto;
   }
 
-  /* Idle */
-  .features {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .feature {
+  .hint {
     display: flex;
-    flex-direction: column;
     align-items: flex-start;
-    gap: 6px;
-    padding: 16px;
+    gap: 14px;
+    padding: 18px;
   }
 
-  .feature .glyph {
-    margin-bottom: 8px;
-  }
-
-  .feature .link {
-    margin: 4px 0 -6px -8px;
-    padding: 0 8px;
-    height: 28px;
-    color: var(--accent);
-    gap: 4px;
-  }
-
-  @media (max-width: 1100px) {
+  @media (max-width: 1280px) {
+    .charts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .kpis {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }

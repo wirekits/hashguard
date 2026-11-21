@@ -16,6 +16,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::backdrop,
+            commands::system_info,
             commands::quick_paths,
             commands::start_scan,
             commands::cancel_scan,

@@ -6,13 +6,24 @@ import type {
   Level,
   QuickPath,
   ScanResult,
+  SystemInfo,
   VerifyResult,
 } from "./types";
 
-export type View = "scan" | "baselines" | "about";
+export type View = "overview" | "scan" | "baselines" | "about";
 export type Filter = "all" | Level;
 
-export const ui = $state<{ view: View }>({ view: "scan" });
+export const ui = $state<{ view: View }>({ view: "overview" });
+
+export const system = $state({ info: null as SystemInfo | null });
+
+export async function loadSystemInfo() {
+  try {
+    system.info = await api.systemInfo();
+  } catch {
+    /* informational only */
+  }
+}
 
 export const scan = $state({
   path: "",
@@ -21,12 +32,22 @@ export const scan = $state({
   done: 0,
   total: 0,
   result: null as ScanResult | null,
+  /** Folder and time of the last finished scan, for the overview. */
+  lastPath: "",
+  finishedAt: 0,
   error: "",
   filter: "all" as Filter,
   query: "",
   selected: null as FileReport | null,
   quick: [] as QuickPath[],
 });
+
+/** Jump to the scanner and start scanning `path` right away. */
+export function quickScan(path: string) {
+  scan.path = path;
+  ui.view = "scan";
+  runScan();
+}
 
 export async function loadQuickPaths() {
   try {
@@ -55,8 +76,11 @@ export async function runScan() {
       scan.total = e.payload.total;
     },
   );
+  const target = scan.path.trim();
   try {
-    scan.result = await api.startScan(scan.path.trim(), scan.blocklist.trim() || null);
+    scan.result = await api.startScan(target, scan.blocklist.trim() || null);
+    scan.lastPath = target;
+    scan.finishedAt = Date.now();
   } catch (e) {
     scan.error = String(e);
   } finally {

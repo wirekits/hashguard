@@ -80,7 +80,8 @@ const reports: FileReport[] = [
 ];
 
 let baselines: BaselineInfo[] = [
-  { name: "system32-чистая", root: "C:\\Windows\\System32", created_unix: 1795132800, files: 6210 },
+  { name: "system32-clean", root: "C:\\Windows\\System32", created_unix: 1795132800, files: 6210 },
+  { name: "program-files", root: "C:\\Program Files", created_unix: 1794960000, files: 2874 },
 ];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -93,11 +94,13 @@ export function installMocks() {
       switch (cmd) {
         case "backdrop":
           return "solid";
+        case "system_info":
+          return { os: "Windows 11", build: 26300, cores: 16, backdrop: "solid" };
         case "quick_paths":
           return [
             { label: "System32", path: "C:\\Windows\\System32" },
-            { label: "Загрузки", path: "C:\\Users\\me\\Downloads" },
-            { label: "Рабочий стол", path: "C:\\Users\\me\\Desktop" },
+            { label: "Downloads", path: "C:\\Users\\me\\Downloads" },
+            { label: "Desktop", path: "C:\\Users\\me\\Desktop" },
             { label: "Temp", path: "C:\\Users\\me\\AppData\\Local\\Temp" },
             { label: "Program Files", path: "C:\\Program Files" },
           ];

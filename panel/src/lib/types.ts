@@ -36,6 +36,13 @@ export interface QuickPath {
   path: string;
 }
 
+export interface SystemInfo {
+  os: string;
+  build: number;
+  cores: number;
+  backdrop: "mica" | "solid";
+}
+
 export interface BaselineInfo {
   name: string;
   root: string;

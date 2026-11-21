@@ -9,7 +9,7 @@
   let confirming = $state("");
 
   async function choose() {
-    const p = await pickFolder("Папка для эталона");
+    const p = await pickFolder("Folder for the baseline");
     if (p) baselines.path = p;
   }
 
@@ -30,143 +30,172 @@
 </script>
 
 <div class="page">
-  <h1 class="title">Эталоны</h1>
+  <h1 class="title">Baselines</h1>
   <p class="lead">
-    Снимок SHA-256 всех исполняемых файлов, сделанный на чистой системе. Сверка покажет каждый
-    изменённый, новый и удалённый файл.
+    A baseline is a SHA-256 snapshot of every executable in a folder, taken while the system is
+    clean. Verifying against it shows every file that was modified, added or removed since.
   </p>
 
-  <section class="card create">
-    <div class="row-head">
-      <div class="glyph accent"><Icon name="database" size={20} /></div>
-      <div class="head-text">
-        <span>Новый эталон</span>
-        <span class="caption">Лучше снимать сразу после установки системы или обновлений</span>
-      </div>
-    </div>
-    <div class="form">
-      <input
-        class="textbox name"
-        placeholder="Название"
-        bind:value={baselines.name}
-        onkeydown={(e) => e.key === "Enter" && makeBaseline()}
-        spellcheck="false"
-        aria-label="Название эталона"
-      />
-      <input
-        class="textbox mono"
-        placeholder="C:\Windows\System32"
-        bind:value={baselines.path}
-        onkeydown={(e) => e.key === "Enter" && makeBaseline()}
-        spellcheck="false"
-        aria-label="Папка"
-      />
-      <button class="btn" onclick={choose}>Обзор…</button>
-      <button
-        class="btn accent"
-        onclick={makeBaseline}
-        disabled={!!baselines.busy || !baselines.name.trim() || !baselines.path.trim()}
-      >
-        {#if baselines.busy === "create"}<ProgressRing size={16} />{/if}
-        {baselines.busy === "create" ? "Снимаю…" : "Создать"}
-      </button>
-    </div>
-  </section>
-
-  {#if baselines.error}
-    <InfoBar severity="danger" title="Ошибка">{baselines.error}</InfoBar>
-  {/if}
-
-  <h2 class="section">Сохранённые</h2>
-  <div class="stack">
-    {#each baselines.list as b (b.name)}
-      <div class="card setting" class:active={baselines.result?.baseline.name === b.name}>
-        <div class="glyph"><Icon name="shieldCheck" size={20} /></div>
-        <div class="setting-text">
-          <span>{b.name}</span>
-          <span class="caption mono root" title={b.root}>{b.root}</span>
-          <span class="caption num">{pluralFiles(b.files)} · {formatDate(b.created_unix)}</span>
+  <div class="layout">
+    <div class="col">
+      <section class="card create">
+        <div class="row-head">
+          <div class="glyph accent"><Icon name="database" size={20} /></div>
+          <div class="head-text">
+            <span class="body-strong">New baseline</span>
+            <span class="caption">Best taken right after installing Windows or updates</span>
+          </div>
         </div>
-        <div class="actions">
-          <button class="btn" onclick={() => runVerify(b.name)} disabled={!!baselines.busy}>
-            {#if baselines.verifying === b.name}<ProgressRing size={16} />Сверяю…{:else}Сверить{/if}
-          </button>
-          <button
-            class="btn subtle"
-            class:danger-text={confirming === b.name}
-            onclick={() => askDelete(b.name)}
-            disabled={!!baselines.busy}
-            aria-label="Удалить эталон {b.name}"
-          >
-            <Icon name="trash" size={16} />{confirming === b.name ? "Удалить?" : ""}
-          </button>
-        </div>
-      </div>
-    {:else}
-      <div class="card setting empty">
-        <div class="glyph"><Icon name="info" size={20} /></div>
-        <span class="caption">Эталонов пока нет. Сними первый, пока система чистая.</span>
-      </div>
-    {/each}
-  </div>
+        <label class="field">
+          <span class="caption">Name</span>
+          <input
+            class="textbox"
+            placeholder="system32-clean"
+            bind:value={baselines.name}
+            onkeydown={(e) => e.key === "Enter" && makeBaseline()}
+            spellcheck="false"
+          />
+        </label>
+        <label class="field">
+          <span class="caption">Folder</span>
+          <span class="inline">
+            <input
+              class="textbox mono"
+              placeholder="C:\Windows\System32"
+              bind:value={baselines.path}
+              onkeydown={(e) => e.key === "Enter" && makeBaseline()}
+              spellcheck="false"
+            />
+            <button class="btn" onclick={choose}>Browse…</button>
+          </span>
+        </label>
+        <button
+          class="btn accent wide"
+          onclick={makeBaseline}
+          disabled={!!baselines.busy || !baselines.name.trim() || !baselines.path.trim()}
+        >
+          {#if baselines.busy === "create"}<ProgressRing size={16} />Hashing files…{:else}Create baseline{/if}
+        </button>
+      </section>
 
-  {#if baselines.result && diff}
-    <h2 class="section">Результат сверки · {baselines.result.baseline.name}</h2>
-    <div class="result appear">
-      <InfoBar
-        severity={changes ? (diff.modified.length ? "danger" : "warn") : "ok"}
-        title={changes ? `Найдено изменений: ${fmtNum(changes)}` : "Все файлы совпадают с эталоном"}
-      >
-        {#if changes}
-          Изменено {fmtNum(diff.modified.length)} · добавлено {fmtNum(diff.added.length)} · удалено {fmtNum(diff.removed.length)}
+      {#if baselines.error}
+        <InfoBar severity="danger" title="Something went wrong">{baselines.error}</InfoBar>
+      {/if}
+
+      <h2 class="section">Saved baselines</h2>
+      <div class="stack">
+        {#each baselines.list as b (b.name)}
+          <div class="card setting" class:active={baselines.result?.baseline.name === b.name}>
+            <div class="glyph"><Icon name="shieldCheck" size={20} /></div>
+            <div class="setting-text">
+              <span>{b.name}</span>
+              <span class="caption mono root" title={b.root}>{b.root}</span>
+              <span class="caption num">{pluralFiles(b.files)} · {formatDate(b.created_unix)}</span>
+            </div>
+            <div class="actions">
+              <button class="btn" onclick={() => runVerify(b.name)} disabled={!!baselines.busy}>
+                {#if baselines.verifying === b.name}<ProgressRing size={16} />Verifying…{:else}Verify{/if}
+              </button>
+              <button
+                class="btn subtle"
+                class:danger-text={confirming === b.name}
+                onclick={() => askDelete(b.name)}
+                disabled={!!baselines.busy}
+                aria-label="Delete baseline {b.name}"
+              >
+                <Icon name="trash" size={16} />{confirming === b.name ? "Delete?" : ""}
+              </button>
+            </div>
+          </div>
         {:else}
-          {baselines.result.root}
-        {/if}
-      </InfoBar>
+          <div class="card setting">
+            <div class="glyph"><Icon name="info" size={20} /></div>
+            <span class="caption">No baselines yet. Take the first one while the system is clean.</span>
+          </div>
+        {/each}
+      </div>
+    </div>
 
-      {#if changes}
-        <div class="card changes">
-          {#each diff.modified as m (m.path)}
-            <div class="change">
-              <span class="tag c-danger"><Icon name="shieldError" size={16} />Изменён</span>
-              <div class="change-body">
-                <span class="mono selectable">{m.path}</span>
-                <span class="caption mono selectable old">было {m.old_sha256}</span>
-                <span class="caption mono selectable">стало {m.new_sha256}</span>
-              </div>
+    <section class="card result">
+      {#if baselines.result && diff}
+        <div class="appear result-inner">
+          <div class="result-head">
+            <span class="caption">Verification</span>
+            <span class="subtitle">{baselines.result.baseline.name}</span>
+            <span class="caption mono">{baselines.result.root}</span>
+          </div>
+          <InfoBar
+            severity={changes ? (diff.modified.length ? "danger" : "warn") : "ok"}
+            title={changes ? `${fmtNum(changes)} ${changes === 1 ? "change" : "changes"} found` : "Everything matches the baseline"}
+          >
+            {#if changes}
+              {fmtNum(diff.modified.length)} modified · {fmtNum(diff.added.length)} added · {fmtNum(diff.removed.length)} removed
+            {:else}
+              {pluralFiles(baselines.result.baseline.files)} checked
+            {/if}
+          </InfoBar>
+
+          {#if changes}
+            <div class="changes">
+              {#each diff.modified as m (m.path)}
+                <div class="change">
+                  <span class="tag c-danger"><Icon name="shieldError" size={16} />Modified</span>
+                  <div class="change-body">
+                    <span class="mono selectable">{m.path}</span>
+                    <span class="caption mono selectable old">was {m.old_sha256}</span>
+                    <span class="caption mono selectable">now {m.new_sha256}</span>
+                  </div>
+                </div>
+              {/each}
+              {#each diff.added as a (a)}
+                <div class="change">
+                  <span class="tag c-warn"><Icon name="warning" size={16} />Added</span>
+                  <span class="mono selectable change-body">{a}</span>
+                </div>
+              {/each}
+              {#each diff.removed as r (r)}
+                <div class="change">
+                  <span class="tag c-info"><Icon name="info" size={16} />Removed</span>
+                  <span class="mono selectable change-body">{r}</span>
+                </div>
+              {/each}
             </div>
-          {/each}
-          {#each diff.added as a (a)}
-            <div class="change">
-              <span class="tag c-warn"><Icon name="warning" size={16} />Новый</span>
-              <span class="mono selectable change-body">{a}</span>
-            </div>
-          {/each}
-          {#each diff.removed as r (r)}
-            <div class="change">
-              <span class="tag c-info"><Icon name="info" size={16} />Удалён</span>
-              <span class="mono selectable change-body">{r}</span>
-            </div>
-          {/each}
+          {/if}
+        </div>
+      {:else}
+        <div class="placeholder">
+          <div class="glyph"><Icon name={baselines.busy === "verify" ? "clock" : "shieldCheck"} size={20} /></div>
+          <span class="body-strong">{baselines.busy === "verify" ? "Re-hashing files…" : "No verification yet"}</span>
+          <span class="caption">Press Verify on a saved baseline to compare it with the folder as it is now.</span>
         </div>
       {/if}
-    </div>
-  {/if}
+    </section>
+  </div>
 </div>
 
 <style>
   .page {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 28px 40px 40px;
+    padding: 28px 36px 36px;
   }
   .lead {
     margin: 6px 0 20px;
-    max-width: 640px;
+    max-width: 760px;
     color: var(--text-2);
   }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(380px, 5fr) 7fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
   .create {
-    padding: 16px;
+    padding: 18px;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -180,12 +209,21 @@
     display: flex;
     flex-direction: column;
   }
-  .form {
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .inline {
     display: flex;
     gap: 8px;
   }
-  .form .name {
-    flex: 0 0 220px;
+  .wide {
+    align-self: flex-start;
+    min-width: 160px;
+  }
+  .section {
+    margin: 12px 0 0;
   }
   .stack {
     display: flex;
@@ -202,10 +240,6 @@
   }
   .setting.active {
     border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-  }
-  .setting.empty .glyph {
-    width: 32px;
-    height: 32px;
   }
   .setting-text {
     flex: 1;
@@ -228,20 +262,42 @@
     padding: 0 8px;
   }
   .result {
+    position: sticky;
+    top: 0;
+    min-height: 480px;
+    padding: 20px;
+  }
+  .result-inner {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 14px;
+  }
+  .result-head {
+    display: flex;
+    flex-direction: column;
+  }
+  .placeholder {
+    height: 100%;
+    min-height: 440px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .placeholder .caption {
+    max-width: 320px;
   }
   .changes {
-    padding: 4px 16px;
+    display: flex;
+    flex-direction: column;
   }
   .change {
     display: grid;
     grid-template-columns: 110px minmax(0, 1fr);
     gap: 12px;
     padding: 12px 0;
-  }
-  .change + .change {
     border-top: 1px solid var(--divider);
   }
   .tag {
@@ -262,5 +318,13 @@
   .old {
     text-decoration: line-through;
     color: var(--text-3);
+  }
+  @media (max-width: 1100px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .result {
+      position: static;
+    }
   }
 </style>

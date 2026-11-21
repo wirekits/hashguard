@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { FileReport } from "../lib/types";
-  import { formatBytes, sigLabel, splitPath, tDetail, tFinding } from "../lib/format";
+  import { formatBytes, sigLabel, splitPath } from "../lib/format";
   import { revealInExplorer } from "../lib/api";
   import LevelPill, { levelTone } from "./LevelPill.svelte";
   import Icon from "./Icon.svelte";
@@ -27,10 +27,10 @@
 
 <svelte:window onkeydown={onkey} />
 
-<aside class="details" aria-label="Подробности файла">
+<aside class="details" aria-label="File details">
   <header>
     <LevelPill level={file.level} />
-    <button class="icon-btn" onclick={onclose} aria-label="Закрыть"><Icon name="close" size={14} /></button>
+    <button class="icon-btn" onclick={onclose} aria-label="Close"><Icon name="close" size={14} /></button>
   </header>
 
   <div class="scroll">
@@ -39,27 +39,27 @@
 
     {#if file.findings.length}
       <ul class="findings {levelTone[file.level]}">
-        {#each file.findings as f}<li>{tFinding(f)}</li>{/each}
+        {#each file.findings as f}<li>{f}</li>{/each}
       </ul>
     {/if}
 
     <dl>
       <div class="prop">
-        <dt class="caption">Подпись</dt>
+        <dt class="caption">Signature</dt>
         <dd>
           {sigLabel[file.signature.status]}
-          {#if file.signature.via_catalog}<div class="caption">через каталог Windows</div>{/if}
-          {#if file.signature.detail}<div class="caption">{tDetail(file.signature.detail)}</div>{/if}
+          {#if file.signature.via_catalog}<div class="caption">via Windows catalog</div>{/if}
+          {#if file.signature.detail}<div class="caption">{file.signature.detail}</div>{/if}
         </dd>
       </div>
       {#if file.signature.signer}
         <div class="prop">
-          <dt class="caption">Издатель</dt>
+          <dt class="caption">Publisher</dt>
           <dd class="selectable">{file.signature.signer}</dd>
         </div>
       {/if}
       <div class="prop">
-        <dt class="caption">Размер</dt>
+        <dt class="caption">Size</dt>
         <dd class="num">{formatBytes(file.size)}</dd>
       </div>
       <div class="prop">
@@ -71,10 +71,10 @@
 
   <footer>
     <button class="btn" onclick={copyHash}>
-      <Icon name={copied ? "check" : "copy"} size={16} />{copied ? "Скопировано" : "Хеш"}
+      <Icon name={copied ? "check" : "copy"} size={16} />{copied ? "Copied" : "Copy hash"}
     </button>
     <button class="btn" onclick={() => revealInExplorer(file.path)}>
-      <Icon name="folder" size={16} />Показать
+      <Icon name="folder" size={16} />Show in folder
     </button>
   </footer>
 </aside>
@@ -126,6 +126,9 @@
   .findings li + li {
     margin-top: 6px;
   }
+  .findings li::first-letter {
+    text-transform: uppercase;
+  }
   dl {
     margin: 16px 0 0;
   }
@@ -139,6 +142,9 @@
   dd {
     margin: 2px 0 0;
     word-break: break-word;
+  }
+  dd .caption::first-letter {
+    text-transform: uppercase;
   }
   .hash {
     word-break: break-all;
