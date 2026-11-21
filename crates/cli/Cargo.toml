@@ -1,0 +1,17 @@
+[package]
+name = "hashguard"
+description = "Windows integrity checker CLI: SHA-256, Authenticode signatures, baselines and heuristics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords = ["security", "authenticode", "integrity", "windows", "hash"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+colored = "2"
+hashguard-core = { path = "../core" }
+serde_json = "1"

@@ -201,11 +201,20 @@ dependencies = [
 
 [[package]]
 name = "hashguard"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
  "colored",
+ "hashguard-core",
+ "serde_json",
+]
+
+[[package]]
+name = "hashguard-core"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
  "rayon",
  "serde",
  "serde_json",

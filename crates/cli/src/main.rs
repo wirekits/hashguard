@@ -3,10 +3,12 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use hashguard::baseline::{self, Baseline};
-use hashguard::heuristics::Level;
-use hashguard::scan::{self, ScanOptions};
-use hashguard::{hashing, report};
+use hashguard_core::baseline::{self, Baseline};
+use hashguard_core::hashing;
+use hashguard_core::heuristics::Level;
+use hashguard_core::scan::{self, ScanOptions};
+
+mod report;
 
 #[derive(Parser)]
 #[command(

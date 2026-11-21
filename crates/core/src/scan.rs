@@ -10,6 +10,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use walkdir::WalkDir;
 
 #[derive(Debug, Serialize)]
@@ -82,25 +83,69 @@ pub fn scan_file(path: &Path, opts: &ScanOptions) -> Result<FileReport> {
     })
 }
 
-/// Scan every PE file under `root` in parallel. Unreadable files are returned
+/// Hooks for long-running scans: cooperative cancellation and progress reporting.
+pub struct Control<'a> {
+    pub cancel: &'a AtomicBool,
+    /// Called as `(done, total)` after every file, from worker threads.
+    pub on_progress: &'a (dyn Fn(usize, usize) + Sync),
+}
+
+pub struct Outcome {
+    pub reports: Vec<FileReport>,
+    pub failures: Failures,
+    /// True when the scan was stopped early; `reports` then holds a partial result.
+    pub cancelled: bool,
+}
+
+/// Scan every PE file under `root` in parallel. Unreadable files are collected
 /// separately so one locked file never aborts a run.
-pub fn scan(root: &Path, opts: &ScanOptions) -> Result<(Vec<FileReport>, Failures)> {
+pub fn scan_with(root: &Path, opts: &ScanOptions, ctl: &Control) -> Result<Outcome> {
     let files = collect_pe_files(root)?;
-    let results: Vec<_> = files
+    let total = files.len();
+    let done = AtomicUsize::new(0);
+    (ctl.on_progress)(0, total);
+
+    let results: Vec<Option<std::result::Result<FileReport, (String, String)>>> = files
         .par_iter()
-        .map(|p| scan_file(p, opts).map_err(|e| (p.display().to_string(), e.to_string())))
+        .map(|p| {
+            if ctl.cancel.load(Ordering::Relaxed) {
+                return None;
+            }
+            let r = scan_file(p, opts).map_err(|e| (p.display().to_string(), e.to_string()));
+            let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+            (ctl.on_progress)(n, total);
+            Some(r)
+        })
         .collect();
 
     let mut reports = Vec::new();
-    let mut errors = Vec::new();
-    for r in results {
+    let mut failures = Vec::new();
+    for r in results.into_iter().flatten() {
         match r {
             Ok(rep) => reports.push(rep),
-            Err(e) => errors.push(e),
+            Err(e) => failures.push(e),
         }
     }
     reports.sort_by(|a, b| b.level.cmp(&a.level).then_with(|| a.path.cmp(&b.path)));
-    Ok((reports, errors))
+    Ok(Outcome {
+        reports,
+        failures,
+        cancelled: ctl.cancel.load(Ordering::Relaxed),
+    })
+}
+
+/// Convenience wrapper without progress or cancellation.
+pub fn scan(root: &Path, opts: &ScanOptions) -> Result<(Vec<FileReport>, Failures)> {
+    let cancel = AtomicBool::new(false);
+    let out = scan_with(
+        root,
+        opts,
+        &Control {
+            cancel: &cancel,
+            on_progress: &|_, _| {},
+        },
+    )?;
+    Ok((out.reports, out.failures))
 }
 
 /// Hash every PE file under `root` for baseline creation / verification.
@@ -146,6 +191,63 @@ mod tests {
         let set = parse_blocklist(&text);
         assert_eq!(set.len(), 1);
         assert!(set.contains(&"a".repeat(64)));
+    }
+
+    fn temp_tree(name: &str, files: usize) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("hashguard-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut pe = vec![0u8; 0x100];
+        pe[0] = b'M';
+        pe[1] = b'Z';
+        pe[0x3C] = 0x80;
+        pe[0x80..0x84].copy_from_slice(b"PE\0\0");
+        for i in 0..files {
+            std::fs::write(dir.join(format!("f{i}.exe")), &pe).unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn scan_reports_progress_for_every_file() {
+        let dir = temp_tree("progress", 3);
+        let cancel = AtomicBool::new(false);
+        let calls = AtomicUsize::new(0);
+        let out = scan_with(
+            &dir,
+            &ScanOptions::default(),
+            &Control {
+                cancel: &cancel,
+                on_progress: &|_, total| {
+                    assert_eq!(total, 3);
+                    calls.fetch_add(1, Ordering::Relaxed);
+                },
+            },
+        )
+        .unwrap();
+        assert_eq!(out.reports.len(), 3);
+        assert!(!out.cancelled);
+        assert_eq!(calls.load(Ordering::Relaxed), 4); // initial 0/3 plus one per file
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn cancelled_scan_stops_and_says_so() {
+        let dir = temp_tree("cancel", 3);
+        let cancel = AtomicBool::new(true);
+        let out = scan_with(
+            &dir,
+            &ScanOptions::default(),
+            &Control {
+                cancel: &cancel,
+                on_progress: &|_, _| {},
+            },
+        )
+        .unwrap();
+        assert!(out.cancelled);
+        assert!(out.reports.is_empty());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

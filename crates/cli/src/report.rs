@@ -1,10 +1,10 @@
 //! Terminal output.
 
-use crate::baseline::Diff;
-use crate::heuristics::Level;
-use crate::scan::FileReport;
-use crate::signature::SigStatus;
 use colored::Colorize;
+use hashguard_core::baseline::Diff;
+use hashguard_core::heuristics::Level;
+use hashguard_core::scan::FileReport;
+use hashguard_core::signature::SigStatus;
 
 fn level_tag(level: Level) -> colored::ColoredString {
     match level {
