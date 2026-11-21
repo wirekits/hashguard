@@ -114,7 +114,7 @@
         </span>
       </button>
 
-      <span class="version caption">hashguard 0.3.0</span>
+      <span class="version caption">hashguard 0.3.1</span>
     </nav>
 
     <main class="content">

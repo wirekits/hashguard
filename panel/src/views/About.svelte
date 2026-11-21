@@ -45,7 +45,7 @@
         <path fill="none" stroke="var(--on-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m8.6 12.2 2.4 2.4 4.4-4.6" />
       </svg>
       <div class="subtitle">hashguard</div>
-      <div class="caption">Version 0.3.0 · MIT license</div>
+      <div class="caption">Version 0.3.1 · MIT license</div>
       <p>Integrity checking for Windows executables: signatures, hashes, baselines and heuristics.</p>
       <div class="chips">
         {#each stack as s}<span class="chip caption">{s}</span>{/each}
